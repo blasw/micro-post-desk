@@ -39,8 +39,8 @@ func (s *Server) SetupRoutes() {
 	s.Engine.DELETE("/posts/delete", controllers.DeletePost(s.Store, s.Cache))
 
 	//TODO Should be moved to likes
-	s.Engine.PATCH("/posts/like", controllers.LikePost(s.Store, s.Cache))
-	s.Engine.PATCH("/posts/unlike", controllers.UnlikePost(s.Store, s.Cache))
+	// s.Engine.PATCH("/posts/like", controllers.LikePost(s.Store, s.Cache))
+	// s.Engine.PATCH("/posts/unlike", controllers.UnlikePost(s.Store, s.Cache))
 }
 
 func (s *Server) Run(basePort int) {

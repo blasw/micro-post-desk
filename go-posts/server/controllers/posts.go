@@ -14,27 +14,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TODO Should be removed
-func Test(store storage.Storage) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	}
-}
-
 type CreatePostDto struct {
 	Title string `json:"title" binding:"required,min=2,max=50"`
 	Body  string `json:"body" binding:"required,min=2,max=350"`
 }
 
-// TODO Should somehow extract author_id from jwt roken instead of having it inside the dto
 func CreatePost(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req CreatePostDto
 		if err := c.ShouldBindJSON(&req); err != nil {
 			log.Error("Unable to bind json: handlers.CreatePost()", "err", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"Error": err.Error()})
 			return
 		}
 
@@ -54,7 +44,7 @@ func CreatePost(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc 
 
 		err := store.CreatePost(post)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"Error": err.Error()})
 			return
 		}
 
@@ -72,7 +62,7 @@ func GetLatestPosts(store storage.Storage, cache *cache.RedisCache) gin.HandlerF
 		var req GetLatestPostDto
 		if err := c.ShouldBindQuery(&req); err != nil {
 			log.Error("Unable to bind query: handlers.GetLatestPosts()", "err", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"Error": err.Error()})
 			return
 		}
 
@@ -123,7 +113,7 @@ func GetMostLikedPosts(store storage.Storage, cache *cache.RedisCache) gin.Handl
 		var req GetMostLikedPostsDto
 		if err := c.ShouldBindQuery(&req); err != nil {
 			log.Error("Unable to bind query: handlers.GetMostLikedPosts()", "err", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"Error": err.Error()})
 			return
 		}
 
@@ -167,24 +157,30 @@ func GetMostLikedPosts(store storage.Storage, cache *cache.RedisCache) gin.Handl
 type GetUsersPostsDto struct {
 	PageID   uint `form:"pageid" binding:"required,min=1"`
 	PageSize uint `form:"pagesize" binding:"required,min=1"`
-	AuthorID uint `form:"author_id" binding:"required"`
 }
 
-// TODO Should only be available for Author
+// TODO Should only be available for Author. No more AuthorID should be required
+// 1. Validate request
+// 2. Validate user -> get user_id, username.
 func GetUsersPosts(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		//validating request
 		var req GetUsersPostsDto
 		if err := c.ShouldBindQuery(&req); err != nil {
 			log.Error("Unable to bind query: handlers.GetUsersPosts()", "err", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"Error": err.Error()})
 			return
 		}
 
-		//if !middleware.ValidateUser(c) {
-		//c.JSON(http.StatusUnauthorized, "Not authorized/invalid tokens")
-		//}
+		user, isValid := middleware.ValidateUser(c)
+		if !isValid {
+			c.JSON(http.StatusUnauthorized, gin.H{"Error": "Not authorized / invalid tokens"})
+			return
+		}
 
-		posts := store.GetUsersPosts(int(req.PageSize), int((req.PageID-1)*req.PageSize), req.AuthorID)
+		author_id := user.User_Id
+
+		posts := store.GetUsersPosts(int(req.PageSize), int((req.PageID-1)*req.PageSize), author_id)
 		c.JSON(http.StatusOK, posts)
 	}
 }
@@ -199,59 +195,12 @@ func GetPost(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc {
 		var req GetPostDto
 		if err := c.ShouldBindQuery(&req); err != nil {
 			log.Error("Unable to bind query: handlers.GetPost()", "err", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"Error": err.Error()})
 			return
 		}
 
 		post := store.GetPost(req.PostID)
 		c.JSON(http.StatusOK, post)
-	}
-}
-
-// TODO Should be moved to go-likes
-type LikePostDto struct {
-	PostID uint `form:"post_id" binding:"required"`
-}
-
-func LikePost(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req LikePostDto
-		if err := c.ShouldBindQuery(&req); err != nil {
-			log.Error("Unable to bind json: handlers.LikePost()", "err", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		err := store.LikePost(req.PostID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Success"})
-	}
-}
-
-// TODO Should be moved to go-users
-type UnlikePostDto struct {
-	PostID uint `form:"post_id" binding:"required"`
-}
-
-func UnlikePost(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req UnlikePostDto
-		if err := c.ShouldBindQuery(&req); err != nil {
-			log.Error("Unable to bind json: handlers.UnlikePost()", "err", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		err := store.UnlikePost(req.PostID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Success"})
 	}
 }
 
@@ -262,16 +211,27 @@ type DeletePostDto struct {
 // TODO Should only be available for the Author. Currently is available for everyone
 func DeletePost(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		//validating request
 		var req DeletePostDto
 		if err := c.ShouldBindQuery(&req); err != nil {
 			log.Error("Unable to bind json: handlers.DeletePost()", "err", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"Error": err.Error()})
 			return
 		}
 
-		//if !middleware.ValidateUser(c) {
-		//c.JSON(http.StatusUnauthorized, "Not authorized/invalid tokens")
-		//}
+		//validating user
+		user, isValid := middleware.ValidateUser(c)
+		if !isValid {
+			c.JSON(http.StatusUnauthorized, gin.H{"Error": "Not authorized / invalid tokens"})
+			return
+		}
+
+		//checking if the user is actually an author of the post
+		post := store.GetPost(req.PostID)
+		if post.AuthorID != user.User_Id {
+			c.JSON(http.StatusForbidden, gin.H{"Error": "Unable to delete other user's posts"})
+			return
+		}
 
 		err := store.DeletePost(req.PostID)
 		if err != nil {
@@ -279,6 +239,6 @@ func DeletePost(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc 
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "Success"})
+		c.JSON(http.StatusOK, gin.H{"Message": "Success"})
 	}
 }
