@@ -1,0 +1,22 @@
+version: "3.8"
+services:
+  go-users-db:
+    container_name: go-users-db
+    image: postgres:16.1-alpine3.19
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+
+  go-users:
+    container_name: go-users
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - go-users-db
+    ports:
+      - "5000:5000"
+    environment:
+      DB_ADDR: "postgresql://postgres:secret@go-users-db/postgres?sslmode=disable"

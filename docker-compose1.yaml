@@ -1,0 +1,71 @@
+version: "3.8"
+services:
+  go-posts-db:
+    container_name: go-posts-db
+    image: postgres:16.1-alpine3.19
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    networks:
+      - post-desk
+    ports:
+      - "5432:5432"
+
+  go-posts-cache:
+    container_name: go-posts-cache
+    image: redis:7.2.4-alpine3.19
+    networks:
+      - post-desk
+    ports:
+      - "6379:6379"
+
+  go-posts1:
+    container_name: go-posts-service1
+    build:
+      context: ./go-posts
+      dockerfile: Dockerfile
+    networks:
+      - post-desk
+    depends_on:
+      - go-posts-db
+      - go-posts-cache
+    ports:
+      - "5001:5000"
+    environment:
+      DB_ADDR: "postgresql://postgres:secret@go-posts-db:5432?sslmode=disable"
+      CACHE_ADDR: "redis://go-posts-cache"
+
+  go-posts2:
+    container_name: go-posts-service2
+    build:
+      context: ./go-posts
+      dockerfile: Dockerfile
+    networks:
+      - post-desk
+    depends_on:
+      - go-posts-db
+      - go-posts-cache
+    ports:
+      - "5002:5000"
+    environment:
+      DB_ADDR: "postgresql://postgres:secret@go-posts-db:5432?sslmode=disable"
+      CACHE_ADDR: "redis://go-posts-cache"
+
+  loadbalancer:
+    container_name: posts-loadbalancer
+    build:
+      context: ./loadbalance
+      dockerfile: Dockerfile
+    networks:
+      - post-desk
+    depends_on:
+      - go-posts1
+      - go-posts2
+    ports:
+      - "5000:5000"
+    environment:
+      - SERVER1=go-posts-service1:5002
+      - SERVER2=go-posts-service2:5002
+
+networks:
+  post-desk:

@@ -1,0 +1,18 @@
+version: "3"
+
+tasks:
+  install:
+    cmds:
+      - echo "Installing..."
+      - go mod download
+      - echo "Done"
+
+  run:
+    cmds:
+      - echo "Running..."
+      - go run main.go
+
+  docker:
+    cmds:
+      - echo "Creating docker cluster..."
+      - docker-compose up

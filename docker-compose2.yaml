@@ -1,0 +1,60 @@
+version: "3.8"
+services:
+  go-posts-db:
+    container_name: go-users-db
+    image: postgres:16.1-alpine3.19
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    networks:
+      - post-desk
+    ports:
+      - "5432:5432"
+
+  go-users1:
+    container_name: go-users-service1
+    build:
+      context: ./go-users
+      dockerfile: Dockerfile
+    networks:
+      - post-desk
+    depends_on:
+      - go-posts-db
+    ports:
+      - "5001:5000"
+    environment:
+      DB_ADDR: "postgresql://postgres:secret@go-users-db:5432?sslmode=disable"
+
+  go-users2:
+    container_name: go-users-service2
+    build:
+      context: ./go-users
+      dockerfile: Dockerfile
+    networks:
+      - post-desk
+    depends_on:
+      - go-posts-db
+    ports:
+      - "5002:5000"
+    environment:
+      DB_ADDR: "postgresql://postgres:secret@go-users-db:5432?sslmode=disable"
+
+  loadbalancer:
+    container_name: users-loadbalancer
+    build:
+      context: ./loadbalance
+      dockerfile: Dockerfile
+    networks:
+      - post-desk
+    depends_on:
+      - go-users1
+      - go-users2
+    ports:
+      - "5000:5000"
+    environment:
+      - SERVER1=go-users-service1:5000
+      - SERVER2=go-users-service2:5000
+      - INSTANCE=users
+
+networks:
+  post-desk:
