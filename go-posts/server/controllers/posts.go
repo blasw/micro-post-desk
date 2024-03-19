@@ -8,6 +8,7 @@ import (
 	"go-posts/storage"
 	"go-posts/storage/models"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -159,9 +160,6 @@ type GetUsersPostsDto struct {
 	PageSize uint `form:"pagesize" binding:"required,min=1"`
 }
 
-// TODO Should only be available for Author. No more AuthorID should be required
-// 1. Validate request
-// 2. Validate user -> get user_id, username.
 func GetUsersPosts(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		//validating request
@@ -240,5 +238,27 @@ func DeletePost(store storage.Storage, cache *cache.RedisCache) gin.HandlerFunc 
 		}
 
 		c.JSON(http.StatusOK, gin.H{"Message": "Success"})
+	}
+}
+
+type CountPostsDto struct {
+	User_id string `form:"id" binding:"required,min=1"`
+}
+
+func CountPosts(storage storage.Storage) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req CountPostsDto
+		if err := c.ShouldBindQuery(&req); err != nil {
+			c.JSON(http.StatusBadRequest, err.Error())
+			return
+		}
+
+		id, err := strconv.Atoi(req.User_id)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{})
+			return
+		}
+		amount := storage.CountPosts(uint(id))
+		c.JSON(http.StatusOK, gin.H{"amount": amount})
 	}
 }

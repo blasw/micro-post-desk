@@ -5,11 +5,9 @@ import (
 	"go-users/storage"
 	"go-users/tokens"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
 	"github.com/shirou/gopsutil/cpu"
 	"go.uber.org/zap"
 )
@@ -35,61 +33,16 @@ func Authenticate(storage *storage.Storage, tokenizer tokens.Tokenizer, logger *
 			return
 		}
 
-		// Check if the access token is valid
-		accessClaims, err := tokenizer.ParseAccessToken(authDto.Access_token)
-		if err == nil && accessClaims != nil {
-			// Access token is valid
-			user_id, _ := strconv.Atoi(accessClaims.Id)
-			resp := &AuthSuccessResp{
-				User_id:  user_id,
-				Username: accessClaims.Username,
-			}
-
-			c.JSON(http.StatusOK, resp)
-			return
-		}
-
-		// Access token is invalid or missing, check for refresh token
-		refreshClaims, err := tokenizer.ParseRefreshToken(authDto.Refresh_token)
-		if err != nil && refreshClaims == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid tokens"})
-			return
-		}
-		// Refresh token has valid structure
-		// Generate a new access token and refresh token pair
-		user, err := storage.GetUserByRefreshToken(authDto.Refresh_token)
+		res, err := tokens.ValidateUser(storage, tokenizer, authDto.Access_token, authDto.Refresh_token)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid tokens"})
-			return
+			c.JSON(http.StatusUnauthorized, err.Error())
 		}
 
-		newRefreshToken, err := tokenizer.NewRefreshToken(jwt.StandardClaims{ExpiresAt: time.Now().Add(time.Hour * 24 * 7).Unix()})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-			return
-		}
-
-		storage.UpdateUserRefreshToken(user.Username, newRefreshToken)
-
-		newAccessToken, err := tokenizer.NewAccessToken(tokens.UserClaims{
-			Id:       fmt.Sprint(user.ID),
-			Username: user.Username,
-			Email:    user.Email,
-			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: time.Now().Add(time.Hour * 24).Unix(),
-			},
-		})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-			return
-		}
-
-		// Set the new access token and refresh token in the response
 		resp := &AuthSuccessResp{
-			User_id:       int(user.ID),
-			Username:      user.Username,
-			Access_token:  newAccessToken,
-			Refresh_token: newRefreshToken,
+			User_id:       res.User_id,
+			Username:      res.Username,
+			Access_token:  res.Access_Token,
+			Refresh_token: res.Refresh_Token,
 		}
 
 		c.JSON(http.StatusOK, resp)

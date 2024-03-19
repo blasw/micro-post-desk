@@ -29,6 +29,9 @@ func (s *Server) SetupRoutes() {
 	// Loadbalancer ----
 	s.Engine.GET("/posts/load", controllers.GetLoadState())
 
+	// Rabbitmq
+	s.Engine.GET("/posts/count", controlles.CountPosts(s.Store))
+
 	// Free ----
 	s.Engine.GET("/posts/latest", controllers.GetLatestPosts(s.Store, s.Cache))
 	s.Engine.GET("/posts/mostliked", controllers.GetMostLikedPosts(s.Store, s.Cache))

@@ -1,10 +1,14 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"go-users/storage"
 	"go-users/storage/models"
 	"go-users/tokens"
+	"io"
+	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -125,5 +129,62 @@ func SignIn(storage *storage.Storage, tokenizer tokens.Tokenizer, logger *zap.Lo
 		resp := gin.H{"username": user.Username, "email": user.Email}
 
 		c.JSON(200, resp)
+	}
+}
+
+type GetStatsDto struct {
+	User_Id uint `form:"id" binding:"required,min=1"`
+}
+
+type GetStatsPayload struct {
+	Amount int64 `json:"amount"`
+}
+
+func GetStats(storage *storage.Storage, tokenizer tokens.Tokenizer, logger *zap.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req GetStatsDto
+		if err := c.ShouldBindQuery(&req); err != nil {
+			c.JSON(http.StatusBadRequest, err.Error())
+			return
+		}
+
+		access_token, err := c.Cookie("access_token")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, err.Error())
+			return
+		}
+		refresh_token, err := c.Cookie("refresh_token")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		res, err := tokens.ValidateUser(storage, tokenizer, access_token, refresh_token)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		// Make a request to users with specified user id
+		targetURL := fmt.Sprintf("http://%v/posts/count?id=%v", os.Getenv("POSTS_LOADBALANCER"), res.User_id)
+		resp, err := http.Get(targetURL)
+		defer resp.Body.Close()
+
+		var payload GetStatsPayload
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		err = json.Unmarshal(body, &payload)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// TODO Should also send request to likes to get amount of likes
+
+		c.JSON(http.StatusOK, gin.H{"posts_amount": payload.Amount})
 	}
 }

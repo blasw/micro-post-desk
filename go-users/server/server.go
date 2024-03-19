@@ -23,6 +23,7 @@ func CreateServer(s *storage.Storage, tokenizer tokens.Tokenizer, logger *zap.Lo
 func (s *Server) SetupRoutes() {
 	s.Engine.POST("/users/signup", controllers.SignUp(s.Storage, s.Tokenizer, s.Logger))
 	s.Engine.POST("/users/signin", controllers.SignIn(s.Storage, s.Tokenizer, s.Logger))
+	s.Engine.GET("/users/stats", controllers.GetStats(s.Storage, s.Tokenizer, s.Logger))
 
 	//rabbitmq side -->
 	s.Engine.POST("/users/auth", controllers.Authenticate(s.Storage, s.Tokenizer, s.Logger))

@@ -20,6 +20,7 @@ type Storage interface {
 	GetUsersPosts(limit int, offset int, authorID uint) []models.Post
 	GetMostLikedPosts(limit int, offset int) []models.Post
 	GetPost(postID uint) models.Post
+	CountPosts(userID uint) int64
 	DeletePost(postID uint) error
 	LikePost(postID uint) error
 	UnlikePost(postID uint) error
@@ -27,6 +28,12 @@ type Storage interface {
 
 type PostgreStore struct {
 	Conn *gorm.DB
+}
+
+func (store *PostgreStore) CountPosts(userID uint) int64 {
+	var count int64
+	store.Conn.Model(models.Post{}).Where("author_id = ?", userID).Count(&count)
+	return count
 }
 
 // CreateStorage creates *gorm.DB instance with connection to the database
